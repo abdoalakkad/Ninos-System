@@ -4,42 +4,41 @@ from datetime import datetime
 import os
 from streamlit_js_eval import streamlit_js_eval, get_user_agent
 
-# 1. إعدادات المظهر (بيبي بلو، أبيض، أسود صريح)
+# 1. المظهر الاحترافي
 st.set_page_config(page_title="Nino's System", page_icon="☕", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #F0F8FF; }
-    h1, h2, h3, p, label, b { color: #000000 !important; font-family: 'Arial'; }
+    h1, h2, h3, p, label, b { color: #000000 !important; font-family: 'Arial'; text-align: center; }
     .stButton>button { 
         background-color: #FFEB3B; color: black; border-radius: 10px; 
         font-weight: bold; border: 2px solid black; width: 100%; height: 3.5em;
     }
-    .stDataFrame { background-color: white; border-radius: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. إعدادات الملفات
+# 2. إعداد الملفات
 LOG_FILE = "attendance.csv"
 STAFF_FILE = "staff_data.csv"
-CAFE_LAT, CAFE_LON = 30.0123, 31.0456 # ** حط هنا لوكيشن Nino's بالظبط **
+CAFE_LAT, CAFE_LON = 30.0123, 31.0456 # ** حط لوكيشن نينوس هنا **
 
-# عرض اللوجو (إذا كان موجوداً بنفس الاسم ninos_logo.png)
+# عرض اللوجو
 if os.path.exists("ninos_logo.png"):
     st.image("ninos_logo.png", width=130)
 
 # جلب بيانات الجهاز والموقع
 ua = get_user_agent()
-loc = streamlit_js_eval(data_string="navigator.geolocation.getCurrentPosition(s => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: s.coords}, '*'); }, e => {}, {enableHighAccuracy: true})", key="gps_final_v3")
+loc = streamlit_js_eval(data_string="navigator.geolocation.getCurrentPosition(s => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: s.coords}, '*'); }, e => {}, {enableHighAccuracy: true})", key="gps_v100")
 
-# 3. واجهة الموظف (البصمة)
+# 3. واجهة الموظف
 name = st.query_params.get("name", None)
 
 if name:
-    st.markdown(f"<h2 style='text-align: center;'>أهلاً بك في نينوس يا {name}</h2>", unsafe_allow_html=True)
+    st.markdown(f"## أهلاً يا {name} في نينوس ☕")
     if loc:
         dist = abs(loc['latitude'] - CAFE_LAT) + abs(loc['longitude'] - CAFE_LON)
-        if dist < 0.001:
+        if dist < 0.005: # زوم واسع شوية عشان ما يعلقش
             c1, c2 = st.columns(2)
             with c1:
                 if st.button("تسجيل حضور ✅"):
@@ -50,47 +49,45 @@ if name:
                     pd.DataFrame([[name, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "انصراف", ua]]).to_csv(LOG_FILE, mode='a', index=False, header=not os.path.isfile(LOG_FILE))
                     st.warning("تم تسجيل انصرافك")
         else:
-            st.error("⚠️ أنت خارج نطاق الكافيه! لا يمكنك البصمة حالياً.")
+            st.error("⚠️ أنت خارج نطاق الكافيه!")
     else:
-        st.info("جاري التحقق من موقعك...")
+        st.info("جاري تحديد موقعك...")
 
-# 4. واجهة الإدارة (الباسورد Ninos2026)
+# 4. لوحة الإدارة
 else:
-    st.sidebar.title("🔐 إدارة Nino's")
+    st.sidebar.title("🔐 إدارة نينوس")
     if st.sidebar.text_input("كلمة السر", type="password") == "Ninos2026":
-        t1, t2, t3 = st.tabs(["💰 تقفيل الحسابات", "👤 إضافة موظف جديد", "📱 سجل البصمة"])
+        t1, t2, t3 = st.tabs(["💰 الحسابات", "👤 إضافة موظف", "📱 السجل"])
         
         with t1:
-            st.markdown("### ملخص الرواتب والعمل")
+            st.markdown("### ملخص الرواتب")
             if os.path.isfile(STAFF_FILE):
-                staff_df = pd.read_csv(STAFF_FILE)
-                st.write("**بيانات الموظفين المسجلة:**")
-                st.dataframe(staff_df, use_container_width=True)
+                sdf = pd.read_csv(STAFF_FILE)
+                # حل مشكلة الـ KeyError: التأكد من أسماء الأعمدة
+                sdf.columns = ['الاسم', 'المرتب', 'الساعات'] 
+                st.dataframe(sdf, use_container_width=True)
                 
-                st.divider()
-                st.markdown("### إضافة خصم أو مكافأة")
-                target = st.selectbox("اختار الموظف:", staff_df['الاسم'].unique() if not staff_df.empty else [])
-                amount = st.number_input("المبلغ (بالجنيه):", value=0)
-                reason = st.text_input("السبب:")
-                if st.button("تسجيل العملية"):
+                target = st.selectbox("اختار الموظف للخصم:", sdf['الاسم'].unique())
+                amount = st.number_input("المبلغ:", value=0)
+                if st.button("تأكيد العملية"):
                     st.success(f"تم تسجيل {amount} ج.م لـ {target}")
+            else:
+                st.info("لا يوجد موظفين حالياً. ضيف أول موظف من التابة التانية.")
 
         with t2:
-            st.markdown("### إضافة موظف جديد وتوليد اللينك")
+            st.markdown("### إضافة موظف جديد")
             with st.form("staff_form"):
-                n = st.text_input("اسم الموظف:")
-                s = st.number_input("المرتب الشهري:", value=11000)
-                h = st.number_input("ساعات الشفت (مثلاً 8 أو 10):", value=8)
-                if st.form_submit_button("حفظ البيانات"):
+                n = st.text_input("الاسم:")
+                s = st.number_input("المرتب:", value=11000)
+                h = st.number_input("الساعات:", value=8)
+                if st.form_submit_button("حفظ"):
                     pd.DataFrame([[n, s, h]]).to_csv(STAFF_FILE, mode='a', index=False, header=not os.path.isfile(STAFF_FILE))
-                    # توليد اللينك الصواب
-                    final_link = f"https://ninos-system.streamlit.app/?name={n.replace(' ', '%20')}"
-                    st.success(f"تم حفظ {n} بنجاح!")
-                    st.markdown(f"**اللينك ده اللي تبعته للموظف على واتساب:**")
-                    st.code(final_link)
+                    link = f"https://ninos-system.streamlit.app/?name={n.replace(' ', '%20')}"
+                    st.success(f"تم الحفظ! ابعت اللينك ده للموظف:")
+                    st.code(link)
 
         with t3:
             if os.path.isfile(LOG_FILE):
                 st.dataframe(pd.read_csv(LOG_FILE), use_container_width=True)
     else:
-        st.markdown("<h3 style='text-align: center;'>يرجى إدخال كلمة السر للدخول للنظام</h3>", unsafe_allow_html=True)
+        st.markdown("### ادخل كلمة السر (Ninos2026)")
