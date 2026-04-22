@@ -4,94 +4,90 @@ from datetime import datetime
 import os
 from streamlit_js_eval import streamlit_js_eval, get_user_agent
 
-# 1. إعدادات الثيم والاحترافية
-st.set_page_config(page_title="Nino's Business System", page_icon="☕", layout="centered")
+# 1. إعدادات الثيم (بيبي بلو وأسود صريح)
+st.set_page_config(page_title="Nino's Accounting System", page_icon="☕", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #F0F8FF; }
-    h1, h2, h3, p, label { color: #000000 !important; font-family: 'Arial'; text-align: center; }
+    h1, h2, h3, p, label, .stMarkdown { color: #000000 !important; font-family: 'Arial'; }
     .stButton>button { 
         background-color: #FFEB3B; color: black; border-radius: 10px; 
-        font-weight: bold; border: 2px solid black; width: 100%; height: 3.5em;
+        font-weight: bold; border: 2px solid black; width: 100%; height: 3em;
     }
-    .sidebar .sidebar-content { background-color: white; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab"] { background-color: #ffffff; border-radius: 5px; border: 1px solid #ccc; padding: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. الملفات والإعدادات
+# 2. ملفات النظام
 LOG_FILE = "attendance.csv"
-STAFF_FILE = "staff_list.csv"
-BASIC_SALARY = 11000
-WORKING_DAYS = 26
+STAFF_FILE = "staff_data.csv"
+CAFE_LAT, CAFE_LON = 30.0123, 31.0456 # حط إحداثيات الكافيه هنا
 
 # عرض اللوجو
 logo_files = [f for f in os.listdir('.') if f.endswith(('.png', '.jpg', '.jpeg')) and 'nino' in f.lower()]
 if logo_files:
-    st.image(logo_files[0], width=150)
-else:
-    st.markdown("<h1>NINO'S SYSTEM</h1>", unsafe_allow_html=True)
+    st.image(logo_files[0], width=120)
 
 # جلب بيانات الجهاز والموقع
 ua = get_user_agent()
 loc = streamlit_js_eval(data_string="navigator.geolocation.getCurrentPosition(s => { window.parent.postMessage({type: 'streamlit:setComponentValue', value: s.coords}, '*'); }, e => {}, {enableHighAccuracy: true})", key="gps_final")
 
-# 3. واجهة الموظفين (بصمة الحضور)
 name = st.query_params.get("name", None)
 
+# --- واجهة الموظف ---
 if name:
-    st.markdown(f"## مرحباً بك يا {name}")
+    st.markdown(f"## نورت شفتك يا {name} ☕")
     if loc:
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("تسجيل حضور ✅"):
-                data = [[name, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "حضور", ua]]
-                pd.DataFrame(data).to_csv(LOG_FILE, mode='a', index=False, header=not os.path.isfile(LOG_FILE))
-                st.success("تم تسجيل الحضور")
-        with col2:
-            if st.button("تسجيل انصراف 🏁"):
-                data = [[name, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "انصراف", ua]]
-                pd.DataFrame(data).to_csv(LOG_FILE, mode='a', index=False, header=not os.path.isfile(LOG_FILE))
-                st.warning("تم تسجيل الانصراف")
-    else:
-        st.info("جاري تحديد موقعك لضمان البصمة داخل الكافيه...")
+        dist = abs(loc['latitude'] - CAFE_LAT) + abs(loc['longitude'] - CAFE_LON)
+        if dist < 0.001:
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("تسجيل حضور ✅"):
+                    pd.DataFrame([[name, datetime.now(), "حضور", ua]]).to_csv(LOG_FILE, mode='a', index=False, header=not os.path.isfile(LOG_FILE))
+                    st.success("تم تسجيل الحضور")
+            with c2:
+                if st.button("تسجيل انصراف 🏁"):
+                    pd.DataFrame([[name, datetime.now(), "انصراف", ua]]).to_csv(LOG_FILE, mode='a', index=False, header=not os.path.isfile(LOG_FILE))
+                    st.warning("تم تسجيل الانصراف")
+        else:
+            st.error("⚠️ إنت بره الزوم! لازم تكون في الكافيه عشان تبصم.")
 
-# 4. لوحة الإدارة (الباسورد Ninos2026)
+# --- واجهة الإدارة ---
 else:
-    st.sidebar.title("🔐 لوحة التحكم")
-    pwd = st.sidebar.text_input("كلمة السر", type="password")
-    
-    if pwd == "Ninos2026":
-        tab1, tab2, tab3 = st.tabs(["📊 السجلات والرواتب", "👤 إضافة موظف", "📝 قائمة الموظفين"])
+    st.sidebar.title("🔐 إدارة نينوس")
+    if st.sidebar.text_input("كلمة السر", type="password") == "Ninos2026":
+        t1, t2, t3 = st.tabs(["💰 تقفيل الرواتب", "➕ إضافة موظف", "📱 سجل البصمة"])
         
-        with tab1:
-            st.markdown("### مراجعة البيانات الحية")
-            if os.path.isfile(LOG_FILE):
-                df = pd.read_csv(LOG_FILE)
-                df.columns = ['الموظف', 'التوقيت', 'الحالة', 'الجهاز']
-                st.dataframe(df, use_container_width=True)
-                
-                st.divider()
-                st.markdown("### حاسبة الرواتب الذكية")
-                s_hours = st.number_input("حدد عدد ساعات الشفت لهذا الموظف:", min_value=1.0, value=8.0, step=0.5)
-                h_rate = BASIC_SALARY / (WORKING_DAYS * s_hours)
-                st.metric("سعر الساعة بناءً على الشفت", f"{round(h_rate, 2)} ج.م")
-            else:
-                st.write("لا توجد سجلات حضور حتى الآن.")
-
-        with tab2:
-            st.markdown("### إضافة موظف جديد للسيستم")
-            new_staff = st.text_input("اسم الموظف الثنائي:")
-            if st.button("حفظ الموظف"):
-                if new_staff:
-                    pd.DataFrame([[new_staff]]).to_csv(STAFF_FILE, mode='a', index=False, header=not os.path.isfile(STAFF_FILE))
-                    st.success(f"تم إضافة {new_staff} بنجاح")
-                    st.code(f"رابط البصمة الخاص به:\nhttps://ninos-system.streamlit.app/?name={new_staff.replace(' ', '%20')}")
-
-        with tab3:
-            if os.path.isfile(STAFF_FILE):
+        with t1:
+            st.markdown("### مراجعة حسابات الشهر")
+            if os.path.isfile(STAFF_FILE) and os.path.isfile(LOG_FILE):
                 staff_df = pd.read_csv(STAFF_FILE)
-                staff_df.columns = ['أطقم العمل المسجلة']
-                st.table(staff_df)
+                # هنا بنحط منطق الحسابات لكل موظف (ساعات، أوفر تايم، خصم)
+                st.write("**بيانات الموظفين والرواتب:**")
+                st.dataframe(staff_df, use_container_width=True)
+                
+                selected_user = st.selectbox("اختار الموظف عشان تنزل خصم:", staff_df['الاسم'].unique())
+                discount = st.number_input(f"قيمة الخصم لـ {selected_user}:", min_value=0)
+                if st.button("تأكيد الخصم"):
+                    st.info(f"تم تسجيل خصم بقيمة {discount} ج.م على {selected_user}")
+            else:
+                st.info("لا توجد بيانات كافية للحسابات حالياً.")
+
+        with t2:
+            st.markdown("### إضافة موظف جديد")
+            with st.form("add_staff"):
+                new_n = st.text_input("الاسم الثنائي:")
+                new_s = st.number_input("الراتب الأساسي (مثلاً 11000):", value=11000)
+                new_h = st.number_input("عدد ساعات الشفت الأساسي:", value=8)
+                if st.form_submit_button("حفظ الموظف"):
+                    pd.DataFrame([[new_n, new_s, new_h]]).to_csv(STAFF_FILE, mode='a', index=False, header=not os.path.isfile(STAFF_FILE))
+                    st.success(f"تم إضافة {new_n} بنجاح.")
+                    st.code(f"رابط البصمة: https://ninos-system.streamlit.app/?name={new_n.replace(' ', '%20')}")
+
+        with t3:
+            if os.path.isfile(LOG_FILE):
+                st.dataframe(pd.read_csv(LOG_FILE), use_container_width=True)
     else:
-        st.markdown("### يرجى إدخال كلمة السر للوصول للإدارة")
+        st.markdown("### ادخل الباسورد للدخول للبيانات.")
